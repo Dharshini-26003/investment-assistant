@@ -1,6 +1,5 @@
 from __future__ import annotations
 from datetime import datetime
-import math
 import numpy as np
 import pandas as pd
 from scipy.optimize import newton
@@ -21,12 +20,23 @@ def cagr(initial: float, final: float, years: float) -> float:
     return (final / initial) ** (1 / years) - 1
 
 
+def _weighted_average_nav(nav_values: pd.Series, units: pd.Series) -> float:
+    total_units = float(units.sum())
+    if total_units <= 0:
+        return float(nav_values.mean()) if not nav_values.empty else 0.0
+    return float(np.average(nav_values, weights=units))
+
 def portfolio_summary(transactions: pd.DataFrame, navs: dict[str, float] | None = None) -> dict:
     if transactions.empty:
         return {"total_invested":0,"current_value":0,"unrealized_pl":0,"realized_pl":0,"return_pct":0,"today_change":0,"total_units":0,"fund_count":0,"allocation":{},"avg_nav":{},"diversification_score":0}
     navs = navs or {}
     df = transactions.copy(); df["amount"] = pd.to_numeric(df["amount"]); df["units"] = pd.to_numeric(df["units"]); df["nav"] = pd.to_numeric(df["nav"])
-    grouped = df.groupby("fund_name").agg(amount=("amount","sum"), units=("units","sum"), category=("fund_category","last"), avg_nav=("nav", lambda s: np.average(s, weights=df.loc[s.index, "units"]))).reset_index()
+    grouped = df.groupby("fund_name").agg(
+        amount=("amount", "sum"),
+        units=("units", "sum"),
+        category=("fund_category", "last"),
+        avg_nav=("nav", lambda s: _weighted_average_nav(s, df.loc[s.index, "units"])),
+    ).reset_index()
     grouped["current_nav"] = grouped.apply(lambda r: float(navs.get(r["fund_name"], r["avg_nav"])), axis=1)
     grouped["current_value"] = grouped["units"] * grouped["current_nav"]
     total_invested = float(grouped["amount"].sum()); current_value = float(grouped["current_value"].sum())

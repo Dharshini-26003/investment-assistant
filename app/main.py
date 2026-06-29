@@ -97,7 +97,10 @@ elif page == "Watchlist":
     st.title("Watchlist")
     with get_conn() as conn:
         name = st.text_input("Fund name"); code = st.text_input("Scheme code (optional)")
-        if st.button("Add to Watchlist") and name: conn.execute("INSERT INTO watchlist(fund_name,scheme_code) VALUES(?,?)", (name, code)); st.rerun()
+        if st.button("Add to Watchlist") and name:
+            conn.execute("INSERT INTO watchlist(fund_name,scheme_code) VALUES(?,?)", (name, code))
+            conn.commit()
+            st.rerun()
     wl = rows_df("watchlist"); st.dataframe(wl, use_container_width=True)
 
 elif page == "AI Assistant":

@@ -17,3 +17,12 @@ def test_sip_projection_no_return():
 
 def test_xirr_empty_safe():
     assert xirr([]) == 0.0
+
+def test_portfolio_summary_zero_unit_fund_uses_mean_nav_safely():
+    df = pd.DataFrame([
+        {"date":"2026-01-01","fund_name":"Zero Unit Fund","fund_category":"Other","amount":0,"nav":100,"units":0,"investment_type":"One-Time"},
+        {"date":"2026-02-01","fund_name":"Zero Unit Fund","fund_category":"Other","amount":0,"nav":120,"units":0,"investment_type":"One-Time"},
+    ])
+    s = portfolio_summary(df)
+    assert s["avg_nav"]["Zero Unit Fund"] == 110
+    assert s["current_value"] == 0
