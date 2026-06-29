@@ -3,47 +3,37 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+.pytest_cache/
 
 # Virtual environments
-venv/
 .venv/
+venv/
 env/
 
-# Environment variables
+# Environment variables and secrets
 .env
 .env.*
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# IDE
-.vscode/
-.idea/
-
-# macOS
-.DS_Store
-
-# Windows
-Thumbs.db
-
-# Logs
-*.log
-
-# Build files
-build/
-dist/
-
-# Secrets
 secrets.json
 credentials.json
-
-# Streamlit secrets
 .streamlit/secrets.toml
 
-# Personal investment data
+# App-local personal data and generated output
+data/*.sqlite3
+data/*.json
+data/*.csv
+reports/*.pdf
+backups/*.sqlite3
 portfolio.db
 transactions.csv
-reports/
 exports/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build/logs
+build/
+dist/
+*.log
