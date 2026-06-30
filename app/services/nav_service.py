@@ -17,7 +17,10 @@ def fetch_amfi_navs(cache_path: Path = NAV_CACHE_PATH, max_age_hours: int = 24) 
         for line in text.splitlines():
             parts = line.split(";")
             if len(parts) >= 6 and parts[0].isdigit():
-                data[parts[3].strip()] = {"scheme_code": parts[0], "nav": float(parts[4]), "date": parts[5]}
+                try:
+                    data[parts[3].strip()] = {"scheme_code": parts[0], "nav": float(parts[4]), "date": parts[5]}
+                except ValueError:
+                    continue
         cache_path.write_text(json.dumps(data), encoding="utf-8")
         return data
     except Exception as exc:
@@ -25,8 +28,12 @@ def fetch_amfi_navs(cache_path: Path = NAV_CACHE_PATH, max_age_hours: int = 24) 
         return json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}
 
 def find_nav(fund_name: str, navs: dict[str, dict]) -> float | None:
+    item = find_nav_item(fund_name, navs)
+    return float(item["nav"]) if item else None
+
+def find_nav_item(fund_name: str, navs: dict[str, dict]) -> dict | None:
     key = fund_name.lower()
     for name, item in navs.items():
         if key in name.lower() or name.lower() in key:
-            return float(item["nav"])
+            return item
     return None
