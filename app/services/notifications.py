@@ -1,27 +1,30 @@
 from __future__ import annotations
 from datetime import date
+import pandas as pd
 from app.database import get_conn
 
-def evaluate_notifications(total_invested: float, current_value: float, peak_value: float | None = None) -> list[str]:
-    messages: list[str] = []
+def evaluate_notifications(total_invested: float, current_value: float, peak_value: float | None = None, transactions: pd.DataFrame | None = None) -> list[tuple[str, str, str]]:
+    messages: list[tuple[str, str, str]] = []
     today = date.today()
-    if today.day >= 25:
-        messages.append("Monthly SIP review is due. Add your planned investment only if you choose to invest.")
-    if total_invested and int(total_invested // 5000) > int((total_invested - 500) // 5000):
-        messages.append("Goal milestone reached: another ₹5,000 milestone has been crossed.")
+    monthly_done = False
+    if transactions is not None and not transactions.empty:
+        tx = transactions.copy()
+        tx["date"] = pd.to_datetime(tx["date"])
+        monthly_done = not tx[(tx["date"].dt.year == today.year) & (tx["date"].dt.month == today.month)].empty
+    if today.day >= 25 and not monthly_done:
+        messages.append((f"monthly-{today:%Y-%m}", "warning", "Monthly ₹500 investment reminder: no investment is logged for this month."))
+    milestone = int(total_invested // 5000) * 5000
+    if milestone and total_invested >= milestone:
+        messages.append((f"milestone-{milestone}", "success", f"Goal milestone reached: ₹{milestone:,.0f} invested."))
     if peak_value and current_value > peak_value:
-        messages.append("Portfolio reached a new all-time high.")
+        messages.append((f"peak-{today:%Y-%m-%d}", "success", "Portfolio reached a new all-time high."))
     if peak_value and peak_value > 0:
         drawdown = (peak_value - current_value) / peak_value
-        for threshold in (0.10, 0.20, 0.30):
-            if drawdown >= threshold:
-                messages.append(f"Portfolio is down {threshold:.0%} from its peak. Review calmly; this is not a trade instruction.")
-                break
-    if today.month == 12:
-        messages.append("Annual portfolio review is due: revisit goals, allocation, risk, and tax records.")
+        if drawdown >= 0.10:
+            messages.append((f"drawdown-{today:%Y-%m-%d}", "warning", f"Portfolio is down {drawdown:.1%} from its peak. Review calmly; this is not a trade instruction."))
     return messages
 
-def persist_notifications(messages: list[str]) -> None:
+def persist_notifications(messages: list[tuple[str, str, str]]) -> None:
     with get_conn() as conn:
-        for message in messages:
-            conn.execute("INSERT INTO notifications(message,severity) VALUES(?,?)", (message, "info"))
+        for key, severity, message in messages:
+            conn.execute("INSERT OR IGNORE INTO notifications(message,severity,notification_key) VALUES(?,?,?)", (message, severity, key))

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import datetime
+from datetime import date, datetime
 import numpy as np
 import pandas as pd
 from scipy.optimize import newton
@@ -28,7 +28,7 @@ def _weighted_average_nav(nav_values: pd.Series, units: pd.Series) -> float:
 
 def portfolio_summary(transactions: pd.DataFrame, navs: dict[str, float] | None = None) -> dict:
     if transactions.empty:
-        return {"total_invested":0,"current_value":0,"unrealized_pl":0,"realized_pl":0,"return_pct":0,"today_change":0,"total_units":0,"fund_count":0,"allocation":{},"avg_nav":{},"diversification_score":0}
+        return {"total_invested":0,"current_value":0,"unrealized_pl":0,"realized_pl":0,"return_pct":0,"today_change":0,"xirr":0,"cagr":0,"total_units":0,"fund_count":0,"allocation":{},"avg_nav":{},"diversification_score":0}
     navs = navs or {}
     df = transactions.copy(); df["amount"] = pd.to_numeric(df["amount"]); df["units"] = pd.to_numeric(df["units"]); df["nav"] = pd.to_numeric(df["nav"])
     grouped = df.groupby("fund_name").agg(
@@ -43,13 +43,33 @@ def portfolio_summary(transactions: pd.DataFrame, navs: dict[str, float] | None 
     allocation = (grouped.set_index("fund_name")["current_value"] / current_value * 100).round(2).to_dict() if current_value else {}
     concentration = max(allocation.values()) if allocation else 0
     score = max(0, min(100, 100 - concentration + min(len(allocation)*8, 40)))
-    return {"total_invested":total_invested,"current_value":current_value,"unrealized_pl":current_value-total_invested,"realized_pl":0.0,"return_pct":((current_value-total_invested)/total_invested*100 if total_invested else 0),"today_change":0.0,"total_units":float(grouped["units"].sum()),"fund_count":int(grouped.shape[0]),"allocation":allocation,"avg_nav":grouped.set_index("fund_name")["avg_nav"].round(4).to_dict(),"diversification_score":round(score, 1),"funds":grouped.to_dict("records")}
+    cashflows = [(str(r["date"]), -float(r["amount"])) for _, r in df.sort_values("date").iterrows()]
+    cashflows.append((str(date.today()), current_value))
+    first_date = pd.to_datetime(df["date"]).min().date()
+    years = max((date.today() - first_date).days / 365.0, 1 / 365)
+    absolute_return = (current_value-total_invested)/total_invested*100 if total_invested else 0
+    return {"total_invested":total_invested,"current_value":current_value,"unrealized_pl":current_value-total_invested,"realized_pl":0.0,"return_pct":absolute_return,"today_change":0.0,"xirr":xirr(cashflows)*100,"cagr":cagr(total_invested, current_value, years)*100,"total_units":float(grouped["units"].sum()),"fund_count":int(grouped.shape[0]),"allocation":allocation,"avg_nav":grouped.set_index("fund_name")["avg_nav"].round(4).to_dict(),"diversification_score":round(score, 1),"funds":grouped.to_dict("records")}
+
+def today_change(transactions: pd.DataFrame, latest: dict[str, float], previous: dict[str, float]) -> float:
+    if transactions.empty:
+        return 0.0
+    df = transactions.copy()
+    df["units"] = pd.to_numeric(df["units"])
+    units_by_fund = df.groupby("fund_name")["units"].sum().to_dict()
+    return float(sum(units * (latest.get(fund, 0) - previous.get(fund, latest.get(fund, 0))) for fund, units in units_by_fund.items()))
 
 
 def monthly_growth(transactions: pd.DataFrame) -> pd.DataFrame:
     if transactions.empty: return pd.DataFrame(columns=["month","amount"])
     df=transactions.copy(); df["date"]=pd.to_datetime(df["date"]); df["month"]=df["date"].dt.to_period("M").astype(str)
     return df.groupby("month", as_index=False)["amount"].sum()
+
+def profit_history(snapshots: pd.DataFrame) -> pd.DataFrame:
+    if snapshots.empty:
+        return pd.DataFrame(columns=["snapshot_date", "profit_loss", "current_value"])
+    df = snapshots.copy()
+    df["snapshot_date"] = pd.to_datetime(df["snapshot_date"])
+    return df.sort_values("snapshot_date")
 
 
 def sip_projection(monthly: float, years: int, annual_return: float) -> dict:

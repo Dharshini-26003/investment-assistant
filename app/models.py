@@ -28,3 +28,11 @@ class WatchlistItem:
     fund_name: str
     scheme_code: str | None = None
     category: str = "Mutual Fund"
+
+@dataclass(frozen=True)
+class PortfolioSnapshot:
+    id: int | None
+    snapshot_date: date
+    total_invested: float
+    current_value: float
+    profit_loss: float
